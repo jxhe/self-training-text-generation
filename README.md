@@ -1,24 +1,20 @@
 # Self-Training for Neural Sequence Generation
 
-This repo is a PyTorch implementation of noisy self-training algorithms from the following [paper](https://arxiv.org/abs/1909.13788):
+This repo includes instructions for running noisy self-training algorithms from the following [paper](https://arxiv.org/abs/1909.13788):
 
-```bibtex
-@inproceedings{He2020Revisiting,
-title={Revisiting Self-Training for Neural Sequence Generation},
-author={Junxian He and Jiatao Gu and Jiajun Shen and Marc'Aurelio Ranzato},
-booktitle={Proceedings of ICLR},
-year={2020},
-url={https://openreview.net/forum?id=SJgdnAVKDH}
-}
 ```
-
-**Note: this repo is under construction, will be ready soon**
+Revisiting Self-Training for Neural Sequence Generation
+Junxian He*, Jiatao Gu*, Jiajun Shen, Marc'Aurelio Ranzato
+ICLR 2020
+```
 
 
 
 ## Requirement
 
-[fairseq](https://github.com/pytorch/fairseq) (Please see the fairseq repo for other requirements on PyTorch and Python versions)
+- [fairseq](https://github.com/pytorch/fairseq) (please see the fairseq repo for other requirements on Python and PyTorch versions)
+
+
 
 fairseq can be installed with:
 
@@ -30,17 +26,13 @@ pip install fairseq
 
 ## Data
 
-Download the WMT'14 En-De dataset:
+Download and preprocess the WMT'14 En-De dataset:
 
 ```shell
 # Dowload and prepare the data
-cd examples/self_training/
+wget https://raw.githubusercontent.com/pytorch/fairseq/master/examples/translation/prepare-wmt14en2de.sh
 bash ../translation/prepare-wmt14en2de.sh --icml17
-```
 
-Preprocess data:
-
-```shell
 TEXT=wmt14_en_de
 fairseq-preprocess --source-lang en --target-lang de \
     --trainpref $TEXT/train --validpref $TEXT/valid --testpref $TEXT/test \
@@ -51,47 +43,86 @@ fairseq-preprocess --source-lang en --target-lang de \
 Then we mimic a semi-supervised setting where 100K training samples are randomly selected as parallel corpus and the remaining English training samples are treated as unannotated monolingual corpus:
 
 ```shell
-cd wmt14_en_de
-# concatenate and shuffle
-paste -d '|' train.en train.de | cat | shuf > train.shuffle
-
-# split
-head -100000 train.shuffle > train.100kpara
-tail --lines=+100001 train.shuffle > train.mono
-
-# extract English/German
-cut -d'|' -f1 train.100kpara > train.100ken
-cut -d'|' -f2 train.100kpara > train.100kde
-cut -d'|' -f1 train.mono > train.mono_en
-
-rm train.shuffle train.100kpara train.mono
-cd ..
+bash extract_wmt100k.sh
 ```
+
+
 
 Preprocess WMT100K:
 
 ```shell
- TEXT=wmt14_en_de_bin                                                                                                                                                
- fairseq-preprocess --source-lang 100ken --target-lang 100kde \                                                                                                      
-        --trainpref wmt14_en_de/train --srcdict $TEXT/dict.en.txt \                                                                                                   
-        --tgtdict $TEXT/dict.de.txt \                                                                                                                                 
-        --destdir $TEXT --workers 16 
+bash preprocess.sh 100ken 100kde 
 ```
+
+
+
+Add noise to the monolingual corpus for later usage:
 
 ```shell
-bash link.sh
+TEXT=wmt14_en_de
+python paraphrase/paraphrase.py \
+  --paraphraze-fn noise_bpe \
+  --word-dropout 0.2 \
+  --word-blank 0.2 \
+  --word-shuffle 3 \
+  --data-file ${TEXT}/train.mono_en \
+  --output ${TEXT}/train.mono_en_noise \
+  --bpe-type subword
 ```
 
 
 
-Train the translation model:
+## Train the base supervised model
+
+Train the translation model with 30K updates:
 
 ```shell
-CUDA_VISIBLE_DEVICES=xx bash train.sh [src] [tgt]
+bash supervised_train.sh 100ken 100kde 30000
 ```
 
 
 
+## Self-training as pseudo-training + fine-tuning
+
+Translate the monolingual data to `train.[suffix]` to form a pseudo parallel dataset:
+
+```shell
+bash translate.sh [model_path] [suffix]  
+```
 
 
+
+Suppose the pseduo target language `suffix` is `mono_de_iter1` (by default), preprocess:
+
+```shell
+bash preprocess.sh mono_en_noise mono_de_iter1
+```
+
+
+
+Pseudo-training + fine-tuning: 
+
+```shell
+bash self_train.sh mono_en_noise mono_de_iter1 
+```
+
+The above command trains the model on the pseduo parallel corpus formed by `train.mono_en_noise` and `train.mono_de_iter1` and then fine-tune it on real parallel data.
+
+
+
+This self-training process can be repeated for multiple iterations to improve performance.
+
+
+
+## Reference
+
+```bibtex
+@inproceedings{He2020Revisiting,
+title={Revisiting Self-Training for Neural Sequence Generation},
+author={Junxian He and Jiatao Gu and Jiajun Shen and Marc'Aurelio Ranzato},
+booktitle={Proceedings of ICLR},
+year={2020},
+url={https://openreview.net/forum?id=SJgdnAVKDH}
+}
+```
 
