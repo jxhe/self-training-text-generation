@@ -29,7 +29,7 @@ pip install fairseq
 Download and preprocess the WMT'14 En-De dataset:
 
 ```shell
-# Dowload and prepare the data
+# Download and prepare the data
 wget https://raw.githubusercontent.com/pytorch/fairseq/master/examples/translation/prepare-wmt14en2de.sh
 bash prepare-wmt14en2de.sh --icml17
 
