@@ -7,13 +7,13 @@ import torch
 import torchtext
 
 from tqdm import tqdm
-from torchtext.data import Field, Iterator
-from torchtext.datasets import LanguageModelingDataset
+from torchtext.legacy.data import Field, Iterator
+from torchtext.legacy.datasets import LanguageModelingDataset
 
 from noise import NoiseLayer
 from noise_bpe import UnsupervisedMTNoising
 
-class SentenceModelingDataset(torchtext.data.Dataset):
+class SentenceModelingDataset(torchtext.legacy.data.Dataset):
     """Defines a dataset for language modeling."""
 
     def __init__(self, path, text_field, newline_eos=True,
@@ -31,7 +31,7 @@ class SentenceModelingDataset(torchtext.data.Dataset):
         examples = []
         with io.open(path, encoding=encoding) as f:
             for line in f:
-                examples.append(torchtext.data.Example.fromlist([line], fields))
+                examples.append(torchtext.legacy.data.Example.fromlist([line], fields))
 
         # examples = [data.Example.fromlist([text], fields)]
         super(SentenceModelingDataset, self).__init__(
